@@ -168,7 +168,7 @@ def template1(background, results):
     # Draw qr codes
     currentQr = 0
     if(numberOfQRCodes != 0):
-        qrHeight = math.floor((topOfFeaturedImage - internalMargin) / (numberOfQRCodes))
+        qrHeight = math.floor((topOfFeaturedImage - internalMargin) / (numberOfQRCodes + 1))
     
     qrPositions = [(math.floor(background.size[0] * 0.5) + internalMargin, bottomOfTitle + internalMargin),
                 (math.floor(background.size[0] * 0.5) + internalMargin + qrHeight + internalMargin, bottomOfTitle + internalMargin),
@@ -214,6 +214,7 @@ def template1(background, results):
         if(results.time != None):
             dateAndTime = build_logistics(results.date + ", " + results.time, results.location, results.pizza)
         draw_multiline(draw, (sideOfFeaturedImage + internalMargin, topOfFeaturedImage, rightMargin, bottomMargin), "keep-calm.ttf", dateAndTime, numlines=3)
+        print("Drew date and time")
         
     background.save("static/output.jpg")
     print("Done")
