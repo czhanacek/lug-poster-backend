@@ -12,7 +12,7 @@ from argparse import Namespace
 import argparse
 
 
-
+# checks to make sure necessary params are there
 def params_sanity(result):
     if(result.date == None):
         if(result.time != None):
@@ -46,6 +46,7 @@ def make_blank_page():
 
 
 # wraps words in a bounding box. basic.
+# bounding box format: [top left, top right, bottom left, bottom right]
 def draw_multiline(drawer, bounding_box, fontname, text, numlines=10000):
     yprogress = 0
     size = 300
@@ -79,7 +80,7 @@ def draw_multiline(drawer, bounding_box, fontname, text, numlines=10000):
         lineheight = font.getsize(text.split("\n")[0])[1]
         font = ImageFont.truetype(fontname, size - 1)
         size -= 1
-        print("Size = " + str(size))
+        #print("Size = " + str(size))
 
         for lineOfText in text.split("\n"):
             line = ""
@@ -115,6 +116,7 @@ def build_logistics(when, where, pizza):
     return output
 
 def template1(background, results):
+    response = {}
     featuredImage = Image.open(results.photo)
     print(featuredImage.size)
     # We want the featured image to be 1/5 of the size of background page
@@ -122,8 +124,8 @@ def template1(background, results):
     ratio = min(finalSize[0]/(featuredImage.size[0]), finalSize[1]/(featuredImage.size[1]))
     print("Ratio: " + str(ratio))
     if(ratio > 1):
-        print("You might want to find a larger image! Preferably one that is at least " + str(finalSize[0]) + "x" + str(finalSize[1]) + "(WxL)")
-        print("Generating poster anyway...")
+        response["larger_image_dimension_width"] = finalSize[0]
+        response["larger_image_dimension_height"] = finalSize[1]
     resizeSize = (math.floor(ratio * featuredImage.size[0]), math.floor(ratio * featuredImage.size[1]))
     featuredImage = featuredImage.resize(resizeSize, Image.ANTIALIAS)
 
@@ -165,15 +167,18 @@ def template1(background, results):
         numberOfQRCodes += 1
     if(results.website != None):
         numberOfQRCodes += 1
+
+
     # Draw qr codes
     currentQr = 0
     if(numberOfQRCodes != 0):
-        qrHeight = math.floor((topOfFeaturedImage - internalMargin) / (numberOfQRCodes + 1))
+        qrHeight = math.floor((topOfFeaturedImage - internalMargin) / (numberOfQRCodes - 1))
     
     qrPositions = [(math.floor(background.size[0] * 0.5) + internalMargin, bottomOfTitle + internalMargin),
                 (math.floor(background.size[0] * 0.5) + internalMargin + qrHeight + internalMargin, bottomOfTitle + internalMargin),
                 (math.floor(background.size[0] * 0.5) + internalMargin, bottomOfTitle + internalMargin + internalMargin + qrHeight)]
 
+    # function definied within another function ;)
     def getQRCaptionPosition(index, text):
         if(index == 0):
             return (math.floor(background.size[0] * 0.5) + internalMargin + (qrHeight / 2) - (supersmallfont.getsize(text)[0] / 2), bottomOfTitle + (internalMargin / 2) + qrHeight)
@@ -182,12 +187,13 @@ def template1(background, results):
         elif(index == 2):
             return (math.floor(background.size[0] * 0.5) + internalMargin + (qrHeight / 2) - (supersmallfont.getsize(text)[0] / 2), bottomOfTitle + internalMargin + qrHeight + (internalMargin / 2) + qrHeight)
     
-
+    bottomOfQRCodes = 0
     if(results.facebook != None):
         facebook = qrcode.make(str(results.facebook)).resize((qrHeight, qrHeight), Image.ANTIALIAS)
         background.paste(facebook, qrPositions[currentQr])
         fbcaption = "Facebook"
         draw.text(getQRCaptionPosition(currentQr, fbcaption), fbcaption, (0,0,0,255), font=supersmallfont)
+        bottomOfQRCodes = getQRCaptionPosition(currentQr, fbcaption)[1] + supersmallfont.getsize(fbcaption)[1]
         currentQr += 1
     background.save("output.jpg")
     if(results.gcal != None):
@@ -195,6 +201,7 @@ def template1(background, results):
         background.paste(gcal, qrPositions[currentQr])
         gcalcaption = "Google Calendar"
         draw.text(getQRCaptionPosition(currentQr, gcalcaption), gcalcaption, (0,0,0,255), font=supersmallfont)
+        bottomOfQRCodes = getQRCaptionPosition(currentQr, gcalcaption)[1] + supersmallfont.getsize(gcalcaption)[1]
         currentQr += 1
     background.save("output.jpg") 
     if(results.website != None):
@@ -202,28 +209,42 @@ def template1(background, results):
         background.paste(website, qrPositions[currentQr])
         websitecaption = "Website"
         draw.text(getQRCaptionPosition(currentQr, websitecaption), websitecaption, (0,0,0,255), font=supersmallfont)
+        bottomOfQRCodes = getQRCaptionPosition(currentQr, websitecaption)[1] + supersmallfont.getsize(websitecaption)[1]
         currentQr += 1
     background.save("output.jpg")
     
     
     
-
+    dateAndTime = None
     # Draw event time, date, and/or location
-    if(results.date != None):
+    if(results.date != None and results.time == None):
         dateAndTime = build_logistics(results.date, results.location, results.pizza)
-        if(results.time != None):
-            dateAndTime = build_logistics(results.date + ", " + results.time, results.location, results.pizza)
-        draw_multiline(draw, (sideOfFeaturedImage + internalMargin, topOfFeaturedImage, rightMargin, bottomMargin), "keep-calm.ttf", dateAndTime, numlines=3)
-        print("Drew date and time")
+    elif(results.time != None):
+        dateAndTime = build_logistics(results.date + ", " + results.time, results.location, results.pizza)
+    draw_multiline(draw, (sideOfFeaturedImage + internalMargin, bottomOfQRCodes + internalMargin, rightMargin, bottomMargin), "keep-calm.ttf", dateAndTime, numlines=3)
+
         
-    background.save("static/output.jpg")
-    print("Done")
+    background.save("output.jpg")
+    return response
+    # All done!
 
 def buildPoster(name, desc, date, time, location, photo, facebook, gcal, website, pizza):
+    response = {}
     if(photo != None):
-        urllib.request.urlretrieve(photo, "photo.png")
+        try:
+            urllib.request.urlretrieve(photo, "photo.png")
+        except(urllib.error.URLError, urllib.error.HTTPError):
+            response["image_request_error"] = True
+            return response
+
     results = Namespace(name=name, desc=desc, date=date, time=time, location=location, photo="photo.png", facebook=facebook, gcal=gcal, website=website, pizza=pizza)
-    template1(make_blank_page(), results)
+    template_response = template1(make_blank_page(), results)
+    response.update(template_response)
+    # current keys in response:
+    # - image_request_error (bool) (critical)
+    # - larger_image_dimension_width (int) (not really an error, more of a suggestion)
+    # - larger_image_dimension_height (int) (not really an error, more of a suggestion)
+    return response
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Creates a poster for a LUG event")
@@ -250,7 +271,6 @@ if __name__ == '__main__':
     print("Is this correct? [yY/nN]")
     response = input("")
     if(response in ["y", "Y"]):
-        print("hooray!")
         template1(make_blank_page(), result)
 
     else:
